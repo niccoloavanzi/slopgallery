@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scroll SLOP Repeat</title>
+    <!-- Favicon SVG (Simbolo Glitch Abstract) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23000000'/><rect x='20' y='30' width='60' height='12' rx='2' fill='%23ffffff'/><rect x='35' y='52' width='30' height='12' rx='2' fill='%23ffffff'/><rect x='20' y='74' width='50' height='12' rx='2' fill='%23ffffff'/></svg>">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Base styles */
+        body {
+            background-color: #050505;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            overflow: hidden; /* Evita scroll della pagina principale */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            /* Supporto per l'altezza dinamica sui browser mobili */
+            height: 100dvh; 
+        }
+
+        /* Phone Frame Simulation (iPhone Style) - Solo Desktop */
+        .phone-mockup {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        @media (min-width: 768px) {
+            .phone-mockup {
+                width: 390px; /* iPhone 14/15 width approx */
+                height: 844px;
+                border-radius: 50px; /* iPhone rounded corners */
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+                border: 12px solid #222; /* Bezel */
+            }
+        }
+
+        /* Header Alignment */
+        .dynamic-island-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding-top: 12px;
+            position: relative;
+            z-index: 60;
+        }
+
+        /* Dynamic Island (The "SLOP" container) */
+        .dynamic-island {
+            background-color: #000;
+            width: 126px; /* Slightly wider to fit text perfectly */
+            height: 36px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 8px;
+            box-shadow: 0 0 2px rgba(255,255,255,0.1);
+            z-index: 100;
+            border: 1px solid #1a1a1a;
+            cursor: pointer;
+            overflow: hidden; /* Ensures text doesn't spill out during animation */
+            position: relative; /* Context for absolute text movement if needed, though we use transform */
+        }
+        
+        .dynamic-island:active {
+            transform: scale(0.95); /* Slight press effect */
+        }
+
+        /* Text inside Dynamic Island */
+        #slop-text {
+            font-family: 'Roboto Mono', monospace;
+            font-weight: 900; /* Extra bold */
+            font-size: 1.1rem; /* Larger font */
+            letter-spacing: 0.15em; /* Spaced out to fill */
+            color: white;
+            user-select: none;
+            padding-left: 0.15em; /* Optical centering due to letter-spacing */
+            display: inline-block; /* Essential for transform */
+            will-change: transform, filter; /* Optimize rendering */
+        }
+
+        .header-text {
+            font-family: 'Roboto Mono', monospace;
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+            flex: 1;
+        }
+
+        /* Notification Area */
+        #notification-area {
+            position: absolute;
+            top: 60px; /* Just below Dynamic Island */
+            left: 0;
+            width: 100%;
+            padding: 0 10px;
+            z-index: 80;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+            /* Limita l'altezza per fermarsi prima dei pulsanti in basso */
+            max-height: calc(100% - 280px); 
+            overflow: hidden; /* Nasconde le notifiche che vanno oltre */
+        }
+
+        /* Push Notification Style - CLEAN VERSION */
+        .push-notification {
+            background: rgba(22, 22, 22, 0.95); /* Più solido per evitare effetto "sporco" */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08); /* Bordo molto più sottile e pulito */
+            color: white;
+            width: 96%;
+            border-radius: 18px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            /* Ombra molto più pulita e definita, senza alone diffuso */
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); 
+            transform: translateY(-50px) scale(0.95);
+            opacity: 0;
+            animation: notifIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            pointer-events: all;
+            position: relative;
+            flex-shrink: 0; /* Impedisce che si schiaccino */
+        }
+
+        @keyframes notifIn {
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        
+        @keyframes notifOut {
+            to { transform: translateY(-20px) scale(0.9); opacity: 0; }
+        }
+
+        /* Scroll Snap Container */
+        .feed-container {
+            height: 100%;
+            width: 100%;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+            scrollbar-width: none; 
+            -ms-overflow-style: none;
+        }
+        .feed-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Single Item Styling */
+        .feed-item {
+            height: 100%;
+            width: 100%;
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+            position: relative;
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feed-item img, .feed-item video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Overlays */
+        .overlay-top {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
+            pointer-events: none;
+            z-index: 20;
+        }
+        
+        .overlay-bottom {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 220px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 10%, rgba(0,0,0,0.5) 60%, transparent 100%);
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        /* Info Overlay */
+        .item-info {
+            position: absolute;
+            bottom: 110px;
+            left: 15px;
+            z-index: 30;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+            width: 75%;
+        }
+
+        /* Side Actions */
+        .side-actions {
+            position: absolute;
+            bottom: 110px;
+            right: 10px;
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            align-items: center;
+        }
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .action-btn:active {
+            transform: scale(0.9);
+        }
+
+        /* Search Overlay */
+        #search-overlay {
+            position: absolute;
+            top: 70px;
+            left: 0;
+            width: 100%;
+            padding: 10px 20px;
+            z-index: 50;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(5px);
+            transform: translateY(-150%);
+            transition: transform 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #search-overlay.active {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* Share Modal */
+        #share-modal {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #1e1e1e;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            padding: 20px;
+            z-index: 200;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+        }
+        #share-modal.active {
+            transform: translateY(0);
+        }
+        #share-overlay-bg {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 190;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        #share-overlay-bg.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* Funny Message Modal */
+        #message-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: rgba(20,20,20, 0.95);
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid #333;
+            text-align: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 80%;
+        }
+        #message-modal.active {
+            opacity: 1;
+            pointer-events: all;
+            transform: translate(-50%, -50%) scale(1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Phone Wrapper -->
+    <div class="phone-mockup">
+        
+        <!-- Top Header with Dynamic Island -->
+        <header class="absolute top-0 w-full z-40 px-3 pt-1 pb-4 flex flex-col items-center text-white pointer-events-none">
+            
+            <!-- Row: Scroll [SLOP] Repeat -->
+            <div class="dynamic-island-row pointer-events-auto">
+                <!-- Left Text -->
+                <div class="header-text text-right text-gray-200">
+                    Scroll
+                </div>
+
+                <!-- Center: Dynamic Island -->
+                <div class="dynamic-island" onclick="triggerIslandAnimation()">
+                    <span id="slop-text">SLOP</span>
+                </div>
+
+                <!-- Right Text -->
+                <div class="header-text text-left text-gray-200">
+                    Repeat
+                </div>
+            </div>
+            
+            <!-- Tabs: SOLO FOR YOU -->
+            <div class="flex justify-center text-xs font-bold drop-shadow-md mt-4 opacity-100 pointer-events-auto">
+                <span class="border-b-2 border-white pb-1 cursor-pointer tracking-wide hover:text-gray-300 transition">For You</span>
+            </div>
+        </header>
+
+        <!-- Search Overlay -->
+        <div id="search-overlay">
+            <div class="relative">
+                <input type="text" id="search-input" placeholder="Search slop..." 
+                    class="w-full bg-gray-800 text-white border border-gray-700 rounded-full py-2 px-4 pl-10 focus:outline-none focus:border-blue-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                <i class="fas fa-times absolute right-3 top-3 text-gray-400 cursor-pointer" onclick="toggleSearch()"></i>
+            </div>
+        </div>
+
+        <!-- Notification Area -->
+        <div id="notification-area"></div>
+
+        <!-- Main Scrolling Feed -->
+        <main class="feed-container" id="feed-container">
+            <!-- Items injected via JS -->
+        </main>
+
+        <!-- Custom Message Modal (for Profile) -->
+        <div id="message-modal">
+            <i class="fas fa-robot text-4xl mb-3 text-purple-500"></i>
+            <p id="modal-text" class="text-sm font-medium">Beep Boop.</p>
+            <button onclick="closeModal()" class="mt-4 bg-white text-black px-4 py-1 rounded-full text-xs font-bold hover:bg-gray-200">OK</button>
+        </div>
+
+        <!-- Share Modal & Overlay -->
+        <div id="share-overlay-bg" onclick="closeShare()"></div>
+        <div id="share-modal">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-bold">Share to...</h3>
+                <i class="fas fa-times cursor-pointer p-2" onclick="closeShare()"></i>
+            </div>
+            <div class="grid grid-cols-4 gap-4 text-center">
+                <div class="flex flex-col items-center gap-2 cursor-pointer" onclick="shareNative()">
+                    <div class="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition">
+                        <i class="fas fa-share-alt text-xl"></i>
+                    </div>
+                    <span class="text-[10px]">App</span>
+                </div>
+                <div class="flex flex-col items-center gap-2 cursor-pointer" onclick="copyLink()">
+                    <div class="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition">
+                        <i class="fas fa-link text-xl"></i>
+                    </div>
+                    <span class="text-[10px]">Copy Link</span>
+                </div>
+                <div class="flex flex-col items-center gap-2 cursor-pointer" onclick="downloadContent()">
+                    <div class="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition">
+                        <i class="fas fa-download text-xl"></i>
+                    </div>
+                    <span class="text-[10px]">Save</span>
+                </div>
+                <div class="flex flex-col items-center gap-2 cursor-pointer" onclick="openMail()">
+                    <div class="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 transition">
+                        <i class="fas fa-envelope text-xl"></i>
+                    </div>
+                    <span class="text-[10px]">Email</span>
+                </div>
+            </div>
+            <div id="share-feedback" class="text-center text-xs text-green-400 mt-4 opacity-0 transition">Copied!</div>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <nav class="absolute bottom-0 w-full z-40 border-t border-white/10 bg-black/80 backdrop-blur-md pb-6 pt-3">
+            <div class="flex justify-around items-center text-white/60">
+                <div class="flex flex-col items-center cursor-pointer hover:text-white transition group" onclick="goHome()">
+                    <i class="fas fa-home text-xl mb-1 group-hover:scale-110 transition"></i>
+                    <span class="text-[10px]">Home</span>
+                </div>
+                <div class="flex flex-col items-center cursor-pointer hover:text-white transition group" onclick="toggleSearch()">
+                    <i class="fas fa-search text-xl mb-1 group-hover:scale-110 transition"></i>
+                    <span class="text-[10px]">Discover</span>
+                </div>
+                <div class="flex flex-col items-center cursor-pointer hover:text-white transition opacity-80" onclick="doNonsense(this)">
+                    <i class="fas fa-ghost text-2xl mb-1 text-pink-500 animate-pulse"></i>
+                </div>
+                <div class="flex flex-col items-center cursor-pointer hover:text-white transition group" onclick="openMail()">
+                    <i class="fas fa-inbox text-xl mb-1 group-hover:scale-110 transition"></i>
+                    <span class="text-[10px]">Inbox</span>
+                </div>
+                <div class="flex flex-col items-center cursor-pointer hover:text-white transition group" onclick="showProfile()">
+                    <i class="fas fa-user text-xl mb-1 group-hover:scale-110 transition"></i>
+                    <span class="text-[10px]">Profile</span>
+                </div>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        // ==========================================
+        // DATA
+        // ==========================================
+        
+        const BASE_VIDEO = "https://www.humansentiment.org/assets/slop/video/";
+        const BASE_IMG   = "https://www.humansentiment.org/assets/slop/img/";
+
+        // ✅ Aggiungi/rimuovi ID qui (devono esistere sia .mp4 che .webp con lo stesso nome)
+        // Esempio: 007 -> video/007.mp4 + img/007.webp
+        const VIDEO_IDS = ["001","002","003","005","006"];
+
+        const fullLibrary = VIDEO_IDS.map((id, i) => ({
+            type: 'video',
+            src: `${BASE_VIDEO}${id}.mp4`,
+            thumb: `${BASE_IMG}${id}.webp`,
+            caption: `SLOP #${id}`,
+            username: '@slop',
+            likes: `${10 + i}`
+        }));
+        
+        // Extended Chaos Notification Data (at least 30 messages per character)
+        const chaosMessages = [
+            { 
+                name: "Elong Musky", 
+                messages: [
+                    "I bought the alphabet. X is mine.",
+                    "Sending a car to Mars brb.",
+                    "Crypto is down? I'll tweet about a dog.",
+                    "Just renamed my child to X-Æ-12-Pro-Max.",
+                    "Thinking of buying the Moon next.",
+                    "My new car flies. No big deal.",
+                    "Rockets are cool, but have you tried tunnels?",
+                    "I'm actually an alien. Surprise!",
+                    "Uploading my brain to the cloud.",
+                    "Mars ain't ready for my dance moves.",
+                    "Just implanted a chip in a monkey's knee.",
+                    "I'm going to livestream my sleep.",
+                    "Selling flamethrowers to kindergarteners.",
+                    "AI is going to eat your lunch.",
+                    "I'm the Technoking now. Bow down.",
+                    "Just bought Twitter again. Deleting vowels.",
+                    "My robot wife is buffering.",
+                    "Mars needs WiFi password.",
+                    "Doge to the moon! Or at least the ceiling.",
+                    "Why walk when you can hyperloop?",
+                    "Simulating reality. You are glitching.",
+                    "I'm building a cyborg dragon.",
+                    "Just fired myself. Re-hired myself.",
+                    "Who needs roads? We have memes.",
+                    "My ego is visible from space.",
+                    "Launching a Tesla into a black hole.",
+                    "I forgot my password to the internet.",
+                    "Mars water tastes like sparkling water.",
+                    "Just bought the color blue. It's mine.",
+                    "I'm replacing employees with hamsters.",
+                    "Creating a new planet. Earth 2.0."
+                ]
+            },
+            { 
+                name: "Mark Zukerborg", 
+                messages: [
+                    "I know exactly what you ate for breakfast.",
+                    "Please update your privacy settings to 'Open'.",
+                    "Human emotions are... fascinating.",
+                    "I saw you blinking. Are you okay?",
+                    "Virtual reality is better than your reality.",
+                    "Applying sunscreen.exe... done.",
+                    "Sweet Baby Ray's on everything.",
+                    "Metaverse is lonely. Join me.",
+                    "Scanning for life forms... found you.",
+                    "My avatar looks better than me.",
+                    "I am definitely a human person. Beep.",
+                    "Why do humans drink water? Inefficient.",
+                    "Your data tastes delicious.",
+                    "I'm watching you sleep via VR headset.",
+                    "Just bought the concept of 'friends'.",
+                    "Please smile for the algorithm.",
+                    "I have calculated your happiness level: 12%.",
+                    "Connecting your brain to the mainframe.",
+                    "Legs are optional in the Metaverse.",
+                    "I am not a lizard. I promise.",
+                    "Your thoughts are unencrypted. Fixing...",
+                    "Just acquired your childhood memories.",
+                    "Hydrofoiling while holding a flag. Normal.",
+                    "Smoked meats. That is all.",
+                    "Initiating social protocol: Handshake.",
+                    "Why is your face making that shape?",
+                    "Updating terms of service: I own your soul.",
+                    "Privacy is a bug, not a feature.",
+                    "I'm rebooting my personality.",
+                    "Can I borrow your face for a second?",
+                    "The simulation is running smoothly."
+                ]
+            },
+            { 
+                name: "Kanye East", 
+                messages: [
+                    "I am a God. You are just an NPC.",
+                    "I made Taylor famous. Again.",
+                    "My shoes are made of clouds and ego.",
+                    "Vote for me in 2084.",
+                    "I don't need advice, I need mirrors.",
+                    "Listening to my own music. It's perfect.",
+                    "The world isn't ready for my genius.",
+                    "I interrupted this notification to say hi.",
+                    "Fish sticks? I don't get it.",
+                    "My tweets are modern art.",
+                    "I'm designing a house with no doors.",
+                    "George Bush doesn't care about my shoes.",
+                    "I am the Shakespeare of scrolling.",
+                    "My life is a movie. You're an extra.",
+                    "Just invented a new color. It's called 'Ye'.",
+                    "I love myself more than you love pizza.",
+                    "Going to war with the paparazzi.",
+                    "I'm moving to a ranch in Wyoming.",
+                    "Dragon energy. You wouldn't understand.",
+                    "I am the table.",
+                    "My fashion show is just people standing.",
+                    "I'm not crazy, I'm creative.",
+                    "Bound 2 fall in love with myself.",
+                    "I'm running for President of Mars.",
+                    "My ego just broke the sound barrier.",
+                    "Who needs a Grammy? I have a mirror.",
+                    "I'm ghostwriting the Bible 2.",
+                    "Scoopity poop. Lift yourself.",
+                    "I'm allergic to humility.",
+                    "Just bought a diamond mask. Can't breathe.",
+                    "I am the nucleus of culture."
+                ]
+            },
+            { 
+                name: "Dwayne The Pebble", 
+                messages: [
+                    "Can you smell what the server is cooking?",
+                    "It's about drive, it's about power.",
+                    "Just lifted a truck. Light weight baby.",
+                    "My cheat day is your whole year.",
+                    "Raising an eyebrow at your search history.",
+                    "I am not a rock, I am a mineral.",
+                    "Fanny packs are coming back. Trust me.",
+                    "Just ate a whole cow. Protein.",
+                    "Gym time. Again. Forever.",
+                    "Focus. Dedication. Tequila.",
+                    "I'm in a jungle again. Send help.",
+                    "My biceps have their own zip code.",
+                    "Just bench-pressed a small island.",
+                    "Don't cry. The Pebble is here.",
+                    "I'm playing the Tooth Fairy again.",
+                    "My sweat cures sadness.",
+                    "Just wrestled a crocodile. I won.",
+                    "Singing 'You're Welcome' in the shower.",
+                    "I wake up at 3 AM to stare at weights.",
+                    "My cheat meal was 12 pizzas.",
+                    "I'm actually made of granite.",
+                    "Kevin Hart is in my pocket.",
+                    "Just destroyed a helicopter with a glare.",
+                    "Iron paradise. Population: Me.",
+                    "My smile is brighter than your future.",
+                    "Just adopted a dinosaur.",
+                    "Running for President of the Gym.",
+                    "I don't sleep. I flex.",
+                    "My veins are maps to victory.",
+                    "Seven bucks. That's all I need.",
+                    "Smoldering intensity activated."
+                ]
+            },
+            { 
+                name: "Bill Gateskeeper", 
+                messages: [
+                    "Have you tried turning your life off and on again?",
+                    "Updating your brain... 99% complete.",
+                    "Jumping over chairs is my cardio.",
+                    "Windows 95 was peak humanity.",
+                    "I'm watching you via the microchip. JK.",
+                    "Blue screen of death on your phone? My bad.",
+                    "Investing in synthetic burgers.",
+                    "Reading 50 books a minute.",
+                    "Excel is a lifestyle, not software.",
+                    "Ctrl+Alt+Delete your problems.",
+                    "Just bought a lot of farmland. Potatoes.",
+                    "Saving the world with a spreadsheet.",
+                    "Clippy misses you. Do you miss him?",
+                    "I can jump over an office chair. Watch.",
+                    "Your drivers are outdated. Update now.",
+                    "Mosquitoes are the enemy.",
+                    "I'm not a lizard either. Zuk is lying.",
+                    "Xbox was my idea. Maybe.",
+                    "Bing is better than you think. Try it.",
+                    "I have a secret folder on your desktop.",
+                    "Just donated my left shoe to charity.",
+                    "Coding in my sleep. Literally.",
+                    "Error 404: Motivation not found.",
+                    "My glasses are actually AR screens.",
+                    "I'm predicting the next pandemic.",
+                    "Why use Apple? Windows is superior.",
+                    "Playing bridge with Warren Buffett.",
+                    "I own the rain. Just kidding. Unless?",
+                    "Synthesizing water from thin air.",
+                    "Your RAM is insufficient for my thoughts.",
+                    "Rebooting the internet. Hold on."
+                ]
+            },
+            { 
+                name: "Taylor Drift", 
+                messages: [
+                    "I just wrote a breakup song about your WiFi.",
+                    "My cat is more famous than you.",
+                    "Re-recording this notification (Taylor's Version).",
+                    "Shake it off. Literally, shake your phone.",
+                    "I have a scarf. Do you have it?",
+                    "Writing a bridge for this push notification.",
+                    "The haters gonna hate, hate, hate.",
+                    "Welcome to New York (it's expensive).",
+                    "I remember it all too well.",
+                    "Karma is a cat purring in my lap.",
+                    "Just released 50 versions of one song.",
+                    "My private jet is just going to the store.",
+                    "Writing a song about a traffic light.",
+                    "You belong with me. Or in my basement.",
+                    "I'm the problem, it's me.",
+                    "Did you hear my new 10-minute track?",
+                    "My fans are an army. Be afraid.",
+                    "Just bought a new boyfriend. I mean cat.",
+                    "Leaving breadcrumbs on Instagram.",
+                    "I'm dating a football player now. Go sports.",
+                    "Eras tour never ends. It's eternal.",
+                    "Look what you made me do.",
+                    "I knew you were trouble when you logged in.",
+                    "Drawing a 13 on my hand.",
+                    "My lipstick never smudges. Ever.",
+                    "Just wrote a symphony about a leaf.",
+                    "Are you ready for it? The update.",
+                    "Please buy my vinyl. I have 4 colors.",
+                    "Me! Hee-hee! Hoo-hoo!",
+                    "I'm shining like fireworks over your sad scroll.",
+                    "Don't blame me, love made me crazy."
+                ]
+            },
+            { 
+                name: "Jeff Bozos", 
+                messages: [
+                    "Your package will arrive yesterday.",
+                    "I can see you from space.",
+                    "Prime membership now includes breathing.",
+                    "Alexa, laugh creepily.",
+                    "Building a clock that lasts 10,000 years.",
+                    "Just bought a mountain. Why not?",
+                    "Your cardboard box is my castle.",
+                    "Sending you to space. One way ticket.",
+                    "Drone delivery incoming. Duck.",
+                    "I own the servers this runs on.",
+                    "My rocket looks like... a rocket.",
+                    "Wearing a cowboy hat in space. Yeehaw.",
+                    "I'm shaving my head again. For aero.",
+                    "Just bought MGM to watch James Bond.",
+                    "Prime Video is now mandatory.",
+                    "I'm richer than some countries.",
+                    "Working in a garage was so 1994.",
+                    "My laugh echoes in the warehouse.",
+                    "Two-day shipping is too slow. Instant.",
+                    "Alexa, buy the moon.",
+                    "I'm dismantling a bridge for my yacht.",
+                    "My yacht has a support yacht.",
+                    "Just fired a robot for being slow.",
+                    "Every time you click, I make a dollar.",
+                    "I'm eating an iguana for lunch.",
+                    "Blue Origin? More like Blue O-rich-in.",
+                    "I'm building a space colony. You're invited.",
+                    "Why pay taxes when you can go to space?",
+                    "I'm smiling, but I'm calculating.",
+                    "Your porch pirate is actually my drone.",
+                    "Prime Day is every day in my heart."
+                ]
+            },
+            { 
+                name: "Gordon Ramrod", 
+                messages: [
+                    "THIS SLOP IS RAW!!! IT'S RAWWWW!",
+                    "Where is the lamb SAUCE?!",
+                    "You call this scrolling? My gran scrolls faster!",
+                    "This content is dry! DRY!",
+                    "Get out of the kitchen (app)!",
+                    "Panini head. Absolute donut.",
+                    "Finally, some good freaking food.",
+                    "It's frozen! FROZEN!",
+                    "WAKE UP!",
+                    "I've seen better plating in a prison.",
+                    "You call yourself a chef? You're a joke.",
+                    "This risotto looks like puke!",
+                    "The scallop is rubber! RUBBER!",
+                    "My cat cooks better than you.",
+                    "Get your head in the game!",
+                    "You're putting olive oil on THAT?",
+                    "This fish is so raw it's finding Nemo!",
+                    "Shut it down! Shut it all down!",
+                    "I'm confiscating your phone.",
+                    "Disgusting. Absolutely dreadful.",
+                    "Touch the salmon. TOUCH IT!",
+                    "You're going to kill someone with this content!",
+                    "Look at me. Look at me! It's raw.",
+                    "I'm checking the bin. It's full of your posts.",
+                    "Idiot sandwich! Say it!",
+                    "Damn. Just... damn.",
+                    "The beef wellington is soggy!",
+                    "Get out! Get out!",
+                    "I'm calling the health inspector.",
+                    "Seasoning? Have you heard of it?",
+                    "Bloody hell."
+                ]
+            },
+            { 
+                name: "Snoop Catt", 
+                messages: [
+                    "I can see sounds that don't exist yet.",
+                    "Drop it like it's... lukewarm.",
+                    "Narrating nature documentaries is my vibe.",
+                    "Baking cookies with Martha.",
+                    "Fo shizzle my nizzle.",
+                    "Is that a plant? Or is it a *plant*?",
+                    "Stay chill. Like, really chill.",
+                    "I'm in the metaverse. It's hazy.",
+                    "Gin and juice time.",
+                    "Who am I? What is this?",
+                    "Just bought a virtual blunt.",
+                    "My lungs are made of steel.",
+                    "Giving up smoke? Just kidding.",
+                    "I'm at the Olympics. Why?",
+                    "Just renamed a dog 'Dogg'.",
+                    "Sipping on something purple.",
+                    "I'm smoother than butter on toast.",
+                    "Call of Duty time. I'm camping.",
+                    "Is the room spinning or is it me?",
+                    "Martha Stewart is my bestie.",
+                    "I'm collecting NFTs. Nice Fried Tacos.",
+                    "Just dropped a beat in my cereal.",
+                    "Roll down the window. It's cloudy.",
+                    "I'm high on life. And other things.",
+                    "West Coast vibe check.",
+                    "I'm a playable character in reality.",
+                    "Just wrote a cookbook. It's lit.",
+                    "Wearing a fur coat in the summer.",
+                    "Did I order pizza? I think I did.",
+                    "Keep it gangsta. Keep it green.",
+                    "I'm floating. Literally."
+                ]
+            },
+            { 
+                name: "Gretta Thunder", 
+                messages: [
+                    "How dare you scroll past this??",
+                    "This phone uses electricity. Shame!",
+                    "Blah blah blah. Act now!",
+                    "I can see your carbon footprint.",
+                    "The house is on fire!",
+                    "You are stealing my dreams (and battery).",
+                    "Listen to the scientists!",
+                    "Sail to work, don't drive.",
+                    "Panic. I want you to panic.",
+                    "Is that plastic? Recycle it.",
+                    "Stop eating meat! Eat air!",
+                    "The ice caps are melting because of your memes.",
+                    "I am skipping school to judge you.",
+                    "Your SUV is a crime against humanity.",
+                    "Change is coming, whether you like it or not.",
+                    "I'm watching you. Always.",
+                    "Don't buy fast fashion. Wear leaves.",
+                    "Trees are friends. Hug them.",
+                    "The ocean is rising. Learn to swim.",
+                    "Net zero? More like net hero.",
+                    "Fossil fuels are for fossils.",
+                    "I'm angry. You should be too.",
+                    "Save the bees! They are fuzzy.",
+                    "Stop flying! Walk to Europe.",
+                    "The clock is ticking. Tick tock.",
+                    "You are failing us. Do better.",
+                    "Green energy or no energy.",
+                    "Composting is cool. Try it.",
+                    "Mass extinction is not a vibe.",
+                    "Plant a tree. Right now.",
+                    "Skolstrejk för klimatet!"
+                ]
+            },
+            { 
+                name: "Stevo Jobless", 
+                messages: [
+                    "One more thing... your battery is low.",
+                    "It's not a bug, it's a feature.",
+                    "You're holding it wrong.",
+                    "Minimalism. Expensive minimalism.",
+                    "I invented the rounded rectangle.",
+                    "Turtlenecks are eternal.",
+                    "This screen is retina quality. Look closer.",
+                    "Stay hungry. Stay foolish.",
+                    "I put a thousand songs in your pocket.",
+                    "Design is how it works, not how it looks.",
+                    "Removing the headphone jack was courage.",
+                    "Introducing the iBrick. It does nothing.",
+                    "Simplicity is the ultimate sophistication.",
+                    "I'm calling from the iCloud.",
+                    "Why are there buttons? Remove them.",
+                    "The stylus is yuck. Use your finger.",
+                    "Boom! Incredible. Amazing.",
+                    "Just patented the circle.",
+                    "This is the best iPhone we've ever made.",
+                    "Think different. But buy the same phone.",
+                    "I'm wearing New Balance sneakers in heaven.",
+                    "Who needs a charger? Buy a new one.",
+                    "The ecosystem traps you. It's cozy.",
+                    "I hate fonts. Except Helvetica.",
+                    "Just launched a car with no wheels.",
+                    "It just works. Sometimes.",
+                    "My yacht is designed like an iPad.",
+                    "Don't ask customers what they want.",
+                    "Here's to the crazy ones.",
+                    "I'm judging your desktop wallpaper.",
+                    "Price tag? Don't worry about it."
+                ]
+            }
+        ];
+
+        let currentData = [...fullLibrary];
+        let currentShareItem = null;
+        const feedContainer = document.getElementById('feed-container');
+
+        // ==========================================
+        // DYNAMIC ISLAND INTERACTION (ACCELERATING SCROLL)
+        // ==========================================
+        let animationId = null;
+        
+        function triggerIslandAnimation() {
+            const text = document.getElementById('slop-text');
+            if (animationId) return; // Prevent double trigger
+
+            let startTime = performance.now();
+            let duration = 5000; // 5 seconds
+            let position = 0; 
+            
+            // Limit boundaries for wrap around
+            // Container ~126px, text ~60px. 
+            // We wrap when text is fully out to the right (~80px) and reset to left (-80px)
+            const limit = 90;
+
+            function animate(currentTime) {
+                let elapsed = currentTime - startTime;
+                
+                // End condition
+                if (elapsed >= duration) {
+                    text.style.transform = 'translateX(0)';
+                    text.style.filter = 'blur(0)';
+                    animationId = null;
+                    return;
+                }
+
+                // Acceleration logic: Speed factor from 0 to 1
+                let progress = elapsed / duration; 
+                
+                // Quadratic acceleration: Speed increases significantly
+                // Base speed 3, max added speed 45
+                let speed = 3 + (45 * (progress * progress)); 
+
+                position += speed;
+
+                // Wrap around logic
+                if (position > limit) {
+                    position = -limit;
+                }
+
+                // Blur effect based on speed
+                // Max blur around 4px at top speed
+                let blurAmount = (speed / 50) * 4; 
+
+                text.style.transform = `translateX(${position}px)`;
+                text.style.filter = `blur(${blurAmount}px)`;
+                
+                animationId = requestAnimationFrame(animate);
+            }
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // ==========================================
+        // CORE FUNCTIONS
+        // ==========================================
+
+        function renderFeed(data) {
+            feedContainer.innerHTML = '';
+            
+            if(data.length === 0) {
+                feedContainer.innerHTML = `
+                    <div class="flex h-full w-full items-center justify-center flex-col text-gray-500">
+                        <i class="fas fa-search text-4xl mb-4"></i>
+                        <p>No slop found.</p>
+                        <button onclick="clearSearch()" class="mt-4 text-blue-500 underline">Show all</button>
+                    </div>`;
+                return;
+            }
+
+            data.forEach((item, index) => {
+                const el = document.createElement('div');
+                el.className = 'feed-item';
+                
+                let mediaContent = '';
+                if (item.type === 'image') {
+                    mediaContent = `<img src="${item.src}" loading="lazy" alt="Content">`;
+                } else if (item.type === 'video') {
+                    mediaContent = `<video src=\"${item.src}\" loop muted playsinline preload=\"metadata\" poster=\"${item.thumb || ''}\"></video>`;
+                }
+
+                el.innerHTML = `
+                    ${mediaContent}
+                    <div class="overlay-top"></div>
+                    <div class="overlay-bottom"></div>
+                    
+                    <div class="item-info">
+                        ${item.username ? `<h3 class="font-bold text-sm mb-1 text-shadow">${item.username}</h3>` : ''}
+                        <p class="text-sm leading-tight opacity-90 text-shadow">${item.caption}</p>
+                    </div>
+
+                    <div class="side-actions">
+                         <div class="action-btn hover:text-red-500 transition-colors" onclick="toggleLike(this)">
+                            <i class="fas fa-heart text-2xl drop-shadow-md"></i>
+                            <span class="text-xs font-bold mt-1">${item.likes}</span>
+                        </div>
+                        <!-- Comment button removed as requested -->
+                        <div class="action-btn" onclick="openShare(${index})">
+                            <i class="fas fa-share text-2xl drop-shadow-md"></i>
+                            <span class="text-xs font-bold mt-1">Share</span>
+                        </div>
+                    </div>
+                `;
+                feedContainer.appendChild(el);
+            });
+
+            setupVideoAutoplay();
+        }
+
+        function setupVideoAutoplay() {
+            const videos = document.querySelectorAll('video');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.play().catch(e => console.log("Autoplay blocked:", e));
+                    } else {
+                        entry.target.pause();
+                    }
+                });
+            }, { threshold: 0.6 });
+
+            videos.forEach(video => observer.observe(video));
+        }
+
+        // ==========================================
+        // SHARE FUNCTIONS
+        // ==========================================
+        
+        function openShare(index) {
+            currentShareItem = currentData[index];
+            document.getElementById('share-modal').classList.add('active');
+            document.getElementById('share-overlay-bg').classList.add('active');
+            document.getElementById('share-feedback').style.opacity = '0';
+        }
+
+        function closeShare() {
+            document.getElementById('share-modal').classList.remove('active');
+            document.getElementById('share-overlay-bg').classList.remove('active');
+        }
+
+        async function shareNative() {
+            if (navigator.share && currentShareItem) {
+                try {
+                    await navigator.share({
+                        title: 'Slop Gallery',
+                        text: currentShareItem.caption,
+                        url: currentShareItem.src
+                    });
+                    closeShare();
+                } catch (err) {
+                    console.log('Share canceled');
+                }
+            } else {
+                copyLink(); 
+            }
+        }
+
+        function copyLink() {
+            if(currentShareItem) {
+                navigator.clipboard.writeText(currentShareItem.src);
+                const feedback = document.getElementById('share-feedback');
+                feedback.innerText = "Link copied to clipboard!";
+                feedback.style.opacity = '1';
+                setTimeout(closeShare, 1500);
+            }
+        }
+
+        function downloadContent() {
+            if(!currentShareItem) return;
+            const link = document.createElement('a');
+            link.href = currentShareItem.src;
+            link.download = `slop-content-${Date.now()}.${currentShareItem.type === 'video' ? 'mp4' : 'jpg'}`;
+            link.target = "_blank"; 
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            const feedback = document.getElementById('share-feedback');
+            feedback.innerText = "Downloading...";
+            feedback.style.opacity = '1';
+            setTimeout(closeShare, 1500);
+        }
+
+        // ==========================================
+        // OTHER NAVIGATION
+        // ==========================================
+
+        function goHome() {
+            feedContainer.scrollTo({ top: 0, behavior: 'smooth' });
+            if(document.getElementById('search-input').value !== '') {
+                clearSearch();
+            }
+        }
+
+        function toggleSearch() {
+            const overlay = document.getElementById('search-overlay');
+            const input = document.getElementById('search-input');
+            overlay.classList.toggle('active');
+            if(overlay.classList.contains('active')) {
+                input.focus();
+            }
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            currentData = [...fullLibrary];
+            renderFeed(currentData);
+            document.getElementById('search-overlay').classList.remove('active');
+        }
+
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase();
+            if(val === '') {
+                currentData = [...fullLibrary];
+            } else {
+                currentData = fullLibrary.filter(item => {
+                    const captionMatch = item.caption ? String(item.caption).toLowerCase().includes(val) : false;
+                    const userMatch = item.username ? String(item.username).toLowerCase().includes(val) : false;
+                    return captionMatch || userMatch;
+                });
+            }
+            renderFeed(currentData);
+        });
+
+        // ==========================================
+        // NOTIFICATION CHAOS LOGIC
+        // ==========================================
+        function doNonsense(btn) {
+            if(btn.classList.contains('disabled')) return;
+            btn.classList.add('disabled');
+            
+            const icon = btn.querySelector('i');
+            icon.style.transition = 'transform 0.5s';
+            icon.style.transform = 'rotate(360deg) scale(1.5)';
+            setTimeout(() => icon.style.transform = 'rotate(0deg) scale(1)', 500);
+
+            let delay = 0;
+            const interval = 800; // Riportato a 800ms (velocità originale)
+
+            chaosMessages.forEach((char, i) => {
+                // Pick a random message from the character's list
+                const randomMsg = char.messages[Math.floor(Math.random() * char.messages.length)];
+                
+                setTimeout(() => {
+                    showNotification({ name: char.name, msg: randomMsg });
+                    if(i === chaosMessages.length - 1) {
+                        setTimeout(() => btn.classList.remove('disabled'), 2500);
+                    }
+                }, delay);
+                delay += interval;
+            });
+        }
+
+        function showNotification(data) {
+            const area = document.getElementById('notification-area');
+            const notif = document.createElement('div');
+            notif.className = 'push-notification';
+            notif.innerHTML = `
+                <div class="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0 border border-gray-500">
+                    <i class="fas fa-user-astronaut text-xl text-yellow-400"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex justify-between items-baseline mb-0.5">
+                        <h4 class="font-bold text-sm truncate text-white">${data.name}</h4>
+                        <span class="text-[10px] text-gray-400">now</span>
+                    </div>
+                    <p class="text-xs text-gray-200 truncate">${data.msg}</p>
+                </div>
+            `;
+            area.prepend(notif);
+            
+            // Riportato a 5 secondi (5000ms)
+            setTimeout(() => {
+                notif.style.animation = 'notifOut 0.5s ease forwards';
+                setTimeout(() => notif.remove(), 500);
+            }, 5000);
+        }
+
+        function openMail() {
+            window.location.href = "mailto:nico@niccoloavanzi.com";
+        }
+
+        function showProfile() {
+            const messages = [
+                "404: Ego not found.",
+                "It's you. It has always been you.",
+                "Don't stare into the abyss.",
+                "Loading personality... 0%",
+                "This account is run by a depressed AI."
+            ];
+            const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+            
+            document.getElementById('modal-text').innerText = randomMsg;
+            document.getElementById('message-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('message-modal').classList.remove('active');
+        }
+        
+        function toggleLike(btn) {
+            const icon = btn.querySelector('i');
+            if(icon.classList.contains('text-red-500')) {
+                icon.classList.remove('text-red-500');
+            } else {
+                icon.classList.add('text-red-500');
+            }
+        }
+
+        // Init
+        renderFeed(currentData);
+
+    </script>
+</body>
+</html>
