@@ -317,6 +317,60 @@
             pointer-events: all;
             transform: translate(-50%, -50%) scale(1);
         }
+    
+        /* Viewer Modal (audio ON) */
+        #viewer-overlay-bg {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 240;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        #viewer-overlay-bg.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        #viewer-modal {
+            position: absolute;
+            inset: 0;
+            z-index: 250;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.98);
+            transition: all 0.2s ease;
+        }
+        #viewer-modal.active {
+            opacity: 1;
+            pointer-events: all;
+            transform: scale(1);
+        }
+
+        #viewer-modal .viewer-topbar {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            z-index: 260;
+        }
+
+        #viewer-content {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
     </style>
 </head>
 <body>
@@ -410,6 +464,16 @@
                 </div>
             </div>
             <div id="share-feedback" class="text-center text-xs text-green-400 mt-4 opacity-0 transition">Copied!</div>
+        </div>
+
+        <!-- Viewer Modal (tap video => audio ON) -->
+        <div id="viewer-overlay-bg" onclick="closeViewer()"></div>
+        <div id="viewer-modal">
+            <div class="viewer-topbar">
+                <span class="text-xs font-bold opacity-90">Sound</span>
+                <i class="fas fa-times cursor-pointer p-2" onclick="closeViewer()"></i>
+            </div>
+            <div id="viewer-content"></div>
         </div>
 
         <!-- Bottom Navigation -->
@@ -861,6 +925,7 @@
 
         let currentData = [...fullLibrary];
         let currentShareItem = null;
+        let currentViewItem = null;
         const feedContainer = document.getElementById('feed-container');
 
         // ==========================================
@@ -940,6 +1005,9 @@
                 const el = document.createElement('div');
                 el.className = 'feed-item';
                 
+                // Tap on item => open viewer with audio (user gesture)
+                el.addEventListener('click', () => openViewer(index));
+                
                 let mediaContent = '';
                 if (item.type === 'image') {
                     mediaContent = `<img src="${item.src}" loading="lazy" alt="Content">`;
@@ -958,12 +1026,12 @@
                     </div>
 
                     <div class="side-actions">
-                         <div class="action-btn hover:text-red-500 transition-colors" onclick="toggleLike(this)">
+                         <div class="action-btn hover:text-red-500 transition-colors" onclick="event.stopPropagation(); toggleLike(this)">
                             <i class="fas fa-heart text-2xl drop-shadow-md"></i>
                             <span class="text-xs font-bold mt-1">${item.likes}</span>
                         </div>
                         <!-- Comment button removed as requested -->
-                        <div class="action-btn" onclick="openShare(${index})">
+                        <div class="action-btn" onclick="event.stopPropagation(); openShare(${index})">
                             <i class="fas fa-share text-2xl drop-shadow-md"></i>
                             <span class="text-xs font-bold mt-1">Share</span>
                         </div>
@@ -1005,6 +1073,109 @@
             document.getElementById('share-modal').classList.remove('active');
             document.getElementById('share-overlay-bg').classList.remove('active');
         }
+
+
+
+        // ==========================================
+        // VIEWER MODAL (AUDIO ON)
+        // ==========================================
+
+        function getActiveFeedVideo() {
+            const items = document.querySelectorAll('.feed-item');
+            if (!items || items.length === 0) return null;
+
+            let bestItem = null;
+            let bestDist = Infinity;
+
+            items.forEach(it => {
+                const r = it.getBoundingClientRect();
+                const dist = Math.abs(r.top);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestItem = it;
+                }
+            });
+
+            return bestItem ? bestItem.querySelector('video') : null;
+        }
+
+        function openViewer(index) {
+            // if share modal is open, ignore
+            const shareActive = document.getElementById('share-modal').classList.contains('active');
+            if (shareActive) return;
+
+            currentViewItem = currentData[index];
+            if (!currentViewItem) return;
+
+            const modal = document.getElementById('viewer-modal');
+            const bg = document.getElementById('viewer-overlay-bg');
+            const container = document.getElementById('viewer-content');
+
+            // Pause the currently visible feed video for performance
+            const activeFeedVideo = getActiveFeedVideo();
+            if (activeFeedVideo) activeFeedVideo.pause();
+
+            container.innerHTML = '';
+
+            if (currentViewItem.type === 'video') {
+                const v = document.createElement('video');
+                v.src = currentViewItem.src;
+                v.controls = true;
+                v.autoplay = true;
+                v.playsInline = true;
+                v.loop = true;
+                v.muted = false;            // ✅ AUDIO ON here
+                v.preload = 'metadata';
+                if (currentViewItem.thumb) v.poster = currentViewItem.thumb;
+
+                v.style.maxWidth = '100%';
+                v.style.maxHeight = '80vh';
+                v.style.borderRadius = '16px';
+
+                container.appendChild(v);
+
+                // Try to play immediately (allowed due to click)
+                v.play().catch(() => {});
+            } else {
+                const img = document.createElement('img');
+                img.src = currentViewItem.src;
+                img.style.maxWidth = '100%';
+                img.style.maxHeight = '80vh';
+                img.style.borderRadius = '16px';
+                container.appendChild(img);
+            }
+
+            modal.classList.add('active');
+            bg.classList.add('active');
+        }
+
+        function closeViewer() {
+            const modal = document.getElementById('viewer-modal');
+            const bg = document.getElementById('viewer-overlay-bg');
+            const container = document.getElementById('viewer-content');
+
+            const v = container.querySelector('video');
+            if (v) {
+                v.pause();
+                v.src = '';
+                v.load();
+            }
+
+            container.innerHTML = '';
+            modal.classList.remove('active');
+            bg.classList.remove('active');
+
+            // Resume visible feed video (muted autoplay)
+            const activeFeedVideo = getActiveFeedVideo();
+            if (activeFeedVideo) {
+                activeFeedVideo.play().catch(() => {});
+            }
+        }
+
+        // ESC closes viewer (desktop)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeViewer();
+        });
 
         async function shareNative() {
             if (navigator.share && currentShareItem) {
